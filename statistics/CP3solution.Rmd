@@ -1,0 +1,642 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.3.0
+  kernelspec:
+    display_name: R
+    language: R
+    name: ir
+---
+
+<!-- #region colab_type="text" id="5qCHUyzK_zUn" -->
+## Inverse transform sampling
+
+Let $X$ have cumulative distribution function $F_X$ (i.e. $F_X(x)=P(X\leq x)$). We know that $Y = F_X(X)$ then has $U([0,1])$ distribution, so that the random variable $F_X^{-1}(Y)$ has the same distribution as $X$.
+
+The inverse transform algorithm is:
+
+1. Sample a value from $U([0,1]))$.
+
+2. Compute $X = F^{-1}(U)$.
+
+
+### The Exponential distribution
+
+
+Let $X\sim\text{Exp}(\lambda)$, i.e. $X \in \mathbb{R}_{\geq 0}$ is an exponentially distributed variable with parameter $\lambda > 0$. The cumulative distribution function of $X$ is given by:
+
+$$
+F(x) = P(X\leq x \mid \lambda) = 1 - \exp(-\lambda x) 
+$$
+
+Write down the inverse $F^{-1}(u)$ for $u\in(0,1)$ of the function $F(x)$.
+<!-- #endregion -->
+
+Set $u = 1-\exp(-\lambda x)$ for $x\geq 0$. Then $x = \lambda^{-1} \ln(1- u)$. So $F^{-1}(u) = \lambda^{-1} \ln(1- u)$ for $u\in(0,1)$.
+
+
+Write a function `expSamp1(lam)` that generates a single sample from $\text{Exp}(\lambda)$ for any $\lambda > 0$ and run it once with $\lambda = 2$.
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 34}, colab_type="code", executionInfo={'elapsed': 860, 'status': 'ok', 'timestamp': 1549745624388, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="rAwFRN4TF9Vc", outputId="8a603d25-e826-4271-b415-5eeafd0c2b35"}
+expSamp1 = function(lam){
+    
+    u = runif(1)
+    return(-(1/lam)*log(u))
+    
+}
+  
+expSamp1(2)
+```
+
+<!-- #region colab_type="text" id="h9qy7dQUF78g" -->
+Using `expSamp1(lam)` or otherwise, write a function `expSamp(n, lam)` that generates a sample of size $n$ from $\text{Exp}(\lambda)$. You may find it useful to read [this](https://www.guru99.com/r-apply-sapply-tapply.html), for example. 
+<!-- #endregion -->
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 34}, colab_type="code", executionInfo={'elapsed': 842, 'status': 'ok', 'timestamp': 1549745624390, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="LOpU78grGQtQ", outputId="d2d1ef3d-1df9-4efe-b9ba-4a6871385a93"}
+expSamp = function(n, la){
+    
+    sample = sapply(1:n, function(i){expSamp1(lam = la)})
+    
+    return(sample)
+    
+}
+  
+print(expSamp(10, 2))
+```
+
+<!-- #region colab_type="text" id="9_wfOr3kGPeH" -->
+Note that R has functions `mean`, `var`, and `sd` that compute means, variances, and standard deviations. Read the help on these functions to find out precisely how they work.
+
+Draw a sample of size 1000 from the Exponential distribution with parameter $\lambda = 2$, and plot its histogram and empirical cumulative distribution function (this is the function $E$ with value at $x$ equal to the proportion of data points with values $\leq x$). The histogram should look like the probability density function. Experiment with different bin numbers (argument `breaks = 20`). For the empirical cdf, either write your own function, or check out `ecdf`. (You can use `par` to arrange plots side-by-side if you wish.)
+<!-- #endregion -->
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 347}, colab_type="code", executionInfo={'elapsed': 890, 'status': 'ok', 'timestamp': 1549745630105, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="UGcE_LXdHQcV", outputId="977e9781-18c5-4068-847c-4b62adeff3b4"}
+e1s = expSamp(1000,2)
+
+# Create two panels for plots
+par(mfrow = c(1, 2))
+
+# Plot the histogram in the left-hand panel. 
+hist(e1s)
+
+# Plot the empirical cdf in the right-hand panel.
+F = ecdf(e1s)
+plot(F)
+```
+
+<!-- #region colab_type="text" id="ZVDCucDBHPGW" -->
+Calculate the mean and the variance of this sample. What are the mean and variance of the Exp distribution? Are the sample mean and variance close to what you would expect?
+<!-- #endregion -->
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 51}, colab_type="code", executionInfo={'elapsed': 405, 'status': 'ok', 'timestamp': 1549745632707, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="EkaVF0BFHsce", outputId="375c9d22-4b78-489e-f19b-383105814f3f"}
+print(paste("Mean: ", mean(e1s))) #1/lambda
+print(paste("Variance: ", var(e1s))) #1/lambda^2
+```
+
+<!-- #region colab_type="text" id="d2_Skn4VHrlK" -->
+## Sampling from discrete distributions
+
+Suppose that $X$ can take on only a finite set of values $x_1<x_2<\dots<x_m$ in $\mathbb{R}$, and let it have cumulative distribution function $F(x) = P(X\leq x)$. We can reformulate the inverse transform method algorithm as follows:
+
+1. Sample a random value $u$ from $U([0,1])$.
+
+2. Find the smallest positive integer $i$ such that $F(x_i)\geq u$, and return $x_i$ as the value of $X$.
+
+Write a function `tstSamp()` that generates a single value from $\text{Bin}(2, 1/3)$ using this method, then generate 1000 samples and plot their histogram. Be careful with the latter: set `freq = FALSE` to get probabilities, but you will also need to play with `breaks` to get a meangful result. 
+
+Note that for many common distributions (e.g. the Normal / Gaussian distribution), R provides a probability (density) functions (e.g. `dnorm`), a random sampling function (e.g. `rnorm`), a cumulative distribution function (e.g. `pnorm`), and a quantile function, i.e. inverse cdf (e.g. `qnorm`). For this exercise, do not use `rbinom`, but feel free to use `dbinom` and `runif`, the sampling function for $U([0, 1])$.
+<!-- #endregion -->
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 398}, colab_type="code", executionInfo={'elapsed': 599, 'status': 'ok', 'timestamp': 1549745634844, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="gsPmMGinH2uK", outputId="a62149f6-a17e-4f6b-9835-2b61d84b5799"}
+
+tstSamp = function(){
+    
+    u = runif(1)
+    rs = 0:2
+    probs = dbinom(rs, 2, 1/3) 
+    F = cumsum(probs)
+
+    i = which(u <= F)[[1]]
+
+    return(i - 1)
+        
+}
+
+samps = sapply(1:1000, function(i){tstSamp()})
+
+hist(samps, freq=FALSE, breaks = c(-0.5, 0.5, 1.5, 2.5))
+```
+
+<!-- #region colab_type="text" id="J3tOlwH8H18z" -->
+## Rejection Sampling
+
+The acceptance-rejection method is used to simulate from probability distributions for which it is hard or computationally expensive to invert the cumulative distribution function. The algorithm assumes that we can sample from another probability distribution that provides an envelope for the target density function.
+
+Suppose that:
+
+- we wish to sample values from a probability distribution with density function $f$;
+- we already can sample values from a probability distribution with density function $h$;
+- we know a value $k$ such that $k h(x)\geq f(x)$ for all $x$.
+
+Let $a(x) = f(x)/[ k h(x)]$. The rejection sampling algorithm is:
+
+1. Sample a value $z$ from the distribution with density $h$.
+
+2. Sample a value $u$ from $U(0,1)$
+
+3. If $u\leq a(z)$, then return $x = z$, else go to 1.
+
+Note that sampling from $U([0, 1])$ and then testing against $a(\tilde x)$ is equivalent to sampling from $U([0,  k h(z)])$ and then testing against $f(z)$. 
+
+### The $\text{Beta}(2,2)$ distribution
+
+The Beta distribution with both shape parameters equal to $2$ has probability density function, for $x\in [0, 1]$:
+
+$$
+f(x)= 6x(1-x)
+$$
+
+Suppose that we want to simulate from $\text{Beta}(2,2)$. Write a function `beta22SampAR1()` which generates a single value using the rejection method, taking $h$ to be uniform on $[0, 1]$. Pick a suitable value of $k$. Which value maximizes the probability of acceptance?
+<!-- #endregion -->
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 34}, colab_type="code", executionInfo={'elapsed': 389, 'status': 'ok', 'timestamp': 1549745637095, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="r2nuIXi2K5lY", outputId="e93fd923-1908-4bfe-ffda-2ceaacf3a6c0"}
+beta22SampAR1 = function(){
+    
+    k = 1.5
+    
+    z = runif(1)
+    u = runif(1)
+    
+    a = (6 * z * (1 - z)) / k
+    # OR
+    a = dbeta(z, 2, 2) / k
+
+    
+    if (u <= a){
+        
+        return(z)
+    }    
+    else{
+        beta22SampAR1()
+    }
+          
+}
+
+beta22SampAR1()  
+```
+
+<!-- #region colab_type="text" id="PUiLsLpEK2J0" -->
+Write a function `beta22SampAR(n)` which generates a sample of size $n$ using this method.
+<!-- #endregion -->
+
+```{r colab={}, colab_type="code", id="CbpF6P3lK6Qn"}
+beta22SampAR = function(n){
+    
+    sample = sapply(1:n, function(i){beta22SampAR1()})
+    
+    return(sample)
+    
+}
+```
+
+<!-- #region colab_type="text" id="soGVfhUxK3Yu" -->
+Now draw a sample of size 1000 from $\text{Beta}(2,2)$ using `beta22sampAR` and plot its histogram, together with its density function superimposed (use `lines` to plot on an existing plot). Check that it looks correct.
+<!-- #endregion -->
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 347}, colab_type="code", executionInfo={'elapsed': 843, 'status': 'ok', 'timestamp': 1549745641355, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="sYPMfTYbK6v5", outputId="10dc703d-6d3f-4967-833a-c17672b16b07"}
+n = 1000
+
+samp = beta22SampAR(n)
+
+par(mfrow = c(1, 2))
+
+# Plot the histogram in the left-hand panel
+hist(samp, freq = FALSE)
+
+# Superimpose the density
+xs = seq(0, 1, len = 100)
+ps = dbeta(xs, 2, 2)
+lines(xs, ps, col = 'blue')
+
+# Plot the empirical cdf in the right-hand panel
+F = ecdf(samp)
+plot(F)           
+```
+
+<!-- #region colab_type="text" id="mE8wTzFeK4yd" -->
+## More Inverse Transform Method
+
+### The Laplace Double Exponential Distribution
+
+Suppose that $X$ has the standard Laplace double exponential distribution on $\mathbb{R}$, with probability density and cumulative distribution functions given by:
+\begin{align*}
+f(x) & = \frac{1}{2} \exp(-|x|) \\
+F(x) & = 
+\begin{cases}
+\frac{1}{2}\exp(x) & \text{for $x < 0$} \\ 
+1 - \frac{1}{2}\exp(-x) & \text{for $x \geq 0$}
+\end{cases}
+\end{align*}
+
+Write down the inverse of the function $F(x)$.
+<!-- #endregion -->
+
+$$
+F^{-1}(u) = 
+\begin{cases}
+\ln(2u) & \text{for $u < 1/2$} \\ 
+-\ln(2-2u) & \text{for $u\geq 1/2$}
+\end{cases}
+$$
+
+<!-- #region colab_type="text" id="_AuuIk-oNPl7" -->
+Write a function `laplaceSamp` that generates a sample of size $n$ from the standard Laplace double exponential distribution.
+<!-- #endregion -->
+
+```{r colab={}, colab_type="code", id="2-IodraoNvEf"}
+laplaceSamp1 = function(){
+    
+    u = runif(1)
+    
+    if (u<= 0.5){
+        
+        return(log(2*u))
+    }
+  else{
+      
+      return(-log(2 - 2*u))
+  }
+    
+    
+}
+
+laplaceSamp = function(n){
+    
+    sample = sapply(1:n, function(i){laplaceSamp1()})
+    
+    return(sample)
+    
+}
+
+laplaceSamp(10)
+  
+```
+
+<!-- #region colab_type="text" id="usBUITFcNplz" -->
+Draw a sample of size 5000 from the standard Laplace double exponential distribution and plot its histogram and superimpose its density (you will need to write a function to compute the density). Does the histogram look correct? Increase the number of cells to $50$. 
+<!-- #endregion -->
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 347}, colab_type="code", executionInfo={'elapsed': 604, 'status': 'ok', 'timestamp': 1549745647441, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="x2Hj-TV6OAk2", outputId="8006d547-6480-4404-fb41-8b9dfd3faa27"}
+dlaplace = function(x){
+    
+    p = exp(-abs(x))/2
+    
+    return(p)
+}
+
+n = 5000
+
+samp = laplaceSamp(n)
+
+# Plot histogram
+hist(samp, freq = FALSE, breaks = 100)
+
+# Calculate limits of data
+l = min(samp)
+u = max(samp)
+
+# Compute density values for a bunch of x values and plot
+xs = seq(l, u, len = 100)
+ps = dlaplace(xs)
+lines(xs, ps, col = 'blue')
+```
+
+<!-- #region colab_type="text" id="3V4kP_DcNr1c" -->
+Calculate the mean and the variance of this sample. What are the mean and variance of the double Laplace distribution? Are the sample mean and variance close to what you would expect?
+<!-- #endregion -->
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 51}, colab_type="code", executionInfo={'elapsed': 393, 'status': 'ok', 'timestamp': 1549745649638, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="-T4ktTsXOWyU", outputId="cd4c435a-800d-4e28-a108-feb965bebb21"}
+print(paste("Mean :", mean(samp), "; true value =", 0))
+print(paste("Variance: ", var(samp), "; true value =", 2)) #Check this
+```
+
+<!-- #region colab_type="text" id="KTT3rPPHNtxG" -->
+### The $\text{Beta}(2,2)$ distribution
+
+The cumulative distribution function (defined on $[0, 1]$) of $\text{Beta}(2,2)$ is:
+
+$$
+F(x) = (3-2x)x^2 
+$$
+
+The inverse of $F$, $F^{-1}$, for $p$ in the interval $[0,1]$, is given by (tricky):
+
+$$
+F^{-1}(p) = 
+\frac{1}{2} 
++ 
+\cos\bigl(\arccos[1-2p]/3-2\pi/3\bigr)
+$$
+
+Write a function `beta22Samp` that generates a sample of size $n$ from $\text{Beta}(2,2)$.
+<!-- #endregion -->
+
+```{r colab={}, colab_type="code", id="ByQxJiYtO1Mi"}
+beta22Samp1 = function(){
+    
+    u = runif(1)
+    
+    x = 0.5 + cos(acos(1 - 2 * u)/3 - 2*pi/3)
+    
+    return(x)
+}
+
+beta22Samp = function(n){
+    
+    sample = sapply(1:n, function(i){beta22Samp1()})
+    
+    return(sample)
+    
+}
+```
+
+<!-- #region colab_type="text" id="1w_EbWmIOxUr" -->
+Draw a sample of size 1000 from $\text{Beta}(2, 2)$ and plot its histogram and superimpose its density. Calculate the mean and the variance of this sample. What are the mean and variance of the $\text{Beta}(2, 2)$ distribution? Are the sample mean and variance close to what you would expect?
+<!-- #endregion -->
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 381}, colab_type="code", executionInfo={'elapsed': 888, 'status': 'ok', 'timestamp': 1549745711027, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="xNSH9jUhPB4u", outputId="6af49bbd-a45c-41d9-b095-92825418aa24"}
+n = 1000
+
+samp2 = beta22Samp(n)
+
+# Plot the histogram
+hist(samp2, freq = FALSE)
+
+# Superimpose the density
+xs = seq(0, 1, len = 100)
+ps = dbeta(xs, 2, 2)
+lines(xs, ps, col = 'blue')
+
+print(paste("Mean :", mean(samp2), "; true value =", 0.5))
+print(paste("Variance: ", var(samp2), "; true value =", 0.05))
+```
+
+<!-- #region colab_type="text" id="mfCciT0ROyzo" -->
+## More rejection method
+
+In this exercise, you will sample from the 'standard' Normal distribution, with mean $0$ and variance $1$, written $\text{N}(0,1)$, using the standard Laplace double exponential as the envelope distribution for $z$. 
+
+Write a function `normalSamp1()` which samples one value from $\text{N}(0,1)$ using the rejection method with the standard Laplace double exponential as the proposal distribution. Note that you can use your previously written function to sample from the Laplace distribution. 
+<!-- #endregion -->
+
+```{r colab={}, colab_type="code", id="wX0sHT2AQrEo"}
+normalSamp1 = function(){
+
+    z = laplaceSamp1()
+    u = runif(1)
+    
+    k = dnorm(1)/dlaplace(1)
+    
+    ptilde = dnorm(z, 0, 1) / (k * dlaplace(z))
+
+    if (u <= ptilde){
+        
+        return(z)
+    }    
+    else{
+        
+        normalSamp1()
+        
+    }
+          
+}
+```
+
+<!-- #region colab_type="text" id="qnHhqeMnQhde" -->
+ 
+  **Question:** Write a function **normalSamp(n)** which samples $n$ values.
+<!-- #endregion -->
+
+```{r colab={}, colab_type="code", id="jfd4OmH7SNZ8"}
+normalSamp = function(n){
+
+    sample = sapply(1:n, function(i){normalSamp1()})
+    
+    return(sample)
+    
+}
+```
+
+<!-- #region colab_type="text" id="7_8ww-_NQm-6" -->
+
+  
+  **Question:** Take a sample of 1000 values and check that the histogram looks correct.
+<!-- #endregion -->
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 381}, colab_type="code", executionInfo={'elapsed': 615, 'status': 'ok', 'timestamp': 1549745720818, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="mEt8erRcSSBD", outputId="35ade444-0364-4f2c-95b8-2f33bf155dcc"}
+n = 1000
+
+sampNorm = normalSamp(n)
+
+# Plot the histogram
+hist(sampNorm, freq = FALSE)
+
+# Calculate limits of data
+l = min(samp)
+u = max(samp)
+
+# Superimpose the density
+xs = seq(l, u, len = 1000)
+ps = dnorm(xs, 0, 1)
+lines(xs, ps, col = 'blue')
+
+print(paste("Mean :", mean(sampNorm), "; true value =", 0))
+print(paste("Variance: ", var(sampNorm), "; true value =", 1))
+```
+
+<!-- #region colab_type="text" id="URIU3KdJQouU" -->
+## More sampling from discrete distributions
+
+Write function `discSamp(n, x, p)` that samples $n$ values from the discrete distribution with possible values in the vector `x` and  probabilities in the vector `p`. Sample 1000 values from a fair die, and plot their histogram. 
+<!-- #endregion -->
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 449}, colab_type="code", executionInfo={'elapsed': 572, 'status': 'ok', 'timestamp': 1549745741419, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="7sP_wbCZXWNZ", outputId="0e660cb2-776c-43a9-a8f7-4f177068939e"}
+discSamp1 = function(x,p){
+    
+    u = runif(1)
+    
+    F = cumsum(p)
+    
+    i = which(u <= F)[[1]]
+
+    return(x[i])
+    
+    
+}
+
+discSamp = function(n, x, p){
+    
+    samp = sapply(1:n, function(i){discSamp1(x, p)})
+    
+    return(samp)
+}
+
+xs = 1:6
+ps = rep(1/6, times = 6)
+n = 1000
+
+samp = discSamp(1000, xs, ps)
+
+hist(samp, freq = FALSE, breaks = c(0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5))
+```
+
+<!-- #region colab_type="text" id="yCnikul6WNbp" -->
+Write a function `poissonSamp(n, lam)` that generates a sample of size $n$ from the Poisson distribution with parameter $\lambda>0$. Note that the Poisson distribution is defined on all of $\mathbb{N}$, so you cannot evaluate the cumulative probailities in advance. Sample 1000 values and plot the histogram (be careful with the `breaks`). 
+<!-- #endregion -->
+
+```{r colab={'base_uri': 'https://localhost:8080/', 'height': 381}, colab_type="code", executionInfo={'elapsed': 481, 'status': 'ok', 'timestamp': 1549745743816, 'user': {'displayName': 'c.c.d.s.caiado@durham.ac.uk', 'photoUrl': '', 'userId': '03678213592855627451'}, 'user_tz': 0}, id="2OvaA7KdYWZs", outputId="8595a31f-d102-40cb-bd13-77de758871ad"}
+poissonSamp1 = function(lam){
+    
+    u = runif(1)
+    
+    i = 0
+    Q = dpois(i, lam)
+    cont = TRUE
+    
+    while (cont){
+        
+        if (u <= Q){
+            
+            cont = FALSE
+            
+        }
+        else{
+            
+            i = i + 1
+            Q = Q + dpois(i, lam)
+        }
+    }
+    
+    return(i)
+}
+
+poissonSamp = function(n,lam){
+
+    samp = sapply(1:n, function(i){poissonSamp1(lam)})
+    
+    return(samp)
+}
+
+
+n = 10000
+samp = poissonSamp(n, 2)
+
+l = min(samp)
+u = max(samp)
+s = c(l - 0.5, (l:u) + 0.5)
+
+hist(samp, freq = FALSE, breaks = s)
+
+print(paste("Mean :", mean(samp), "; true value =", 2))
+print(paste("Variance: ", var(samp), "; true value =", 2))
+```
+
+## Approximating the value of $\pi$
+
+Approximate the value of $\pi$ by sampling from the uniform distribution on the unit square, and counting the proportion of points that fall inside the unit circle. Plot the points, colouring them according to whether they are in the unit circle or not, and superimpose a quarter of the unit circle on the plot. 
+
+```{r}
+squareSamp1 = function(){
+    
+    u = runif(2)
+    
+    return(u)
+    
+}
+
+squareSamp = function(n){
+
+    samp = sapply(1:n, function(i){squareSamp1()})
+    
+    return(samp)
+
+}
+
+computePi = function(sample){
+    
+    radii = sqrt(colSums(sample * sample))
+    
+    numPoints = length(radii)
+
+    numInCircle = sum(radii <= 1)
+    
+    pihat = 4 * numInCircle / numPoints
+    
+    return(pihat)
+    
+}
+
+samp = squareSamp(1000)
+
+pihat = computePi(samp)
+
+pihat
+
+radii = sqrt(colSums(samp * samp))
+
+plot(samp[1,], samp[2,], col = ((radii <= 1) + 2))
+
+xs = seq(0, 1, len = 100)
+ys = sqrt(1 - xs * xs)
+
+lines(xs, ys, col = 'blue')
+```
+
+Derive an expression for the variance of the estimator $\hat{\pi}$ of $\pi$ as a function of $n$, the number of points sampled. Write some code to evaluate the typical errors for $n \in \{10^{a}\}_{a\in[1..6]}$. Does this match with the errors you see in your estimates for different numbers of samples?
+
+
+We wish to calculate the integral $\pi = 4\int_{C} dx = 4\int_{S} dx \chi_{C}(x)$, where $S$ is the unit square, $C$ is the intersection of the unit circle with the unit square, and $\chi_{C}(x)$ has value $1$ for $x$ inside $C$ and $0$ for $x$ outside. We can write this as an expectation with respect to $P(x) = dx = dx_{1} dx_{2}$, the uniform distribution on $S$, as $\pi = E[4\chi_{C}] = \int_{S} 4\chi_{C}(x) P(x)$. 
+
+The MC approximation to this is:
+
+$$
+\hat{\pi} = \bar{\chi_{C}} = {1 \over n}\sum_{i} 4\chi_{C}(x_{i})
+$$
+
+The estimator is unbiased, as shown in lectures, and as can immediately be verified, so
+
+$$
+E[\hat{\pi}] = E[4\chi_{C}] = \pi
+$$
+
+Its variance, from the result in lectures, is $\text{Var}[\hat{\pi}] = {1 \over n} \text{Var}[4\chi_{C}]$. The latter can be computed by first calculating
+$E[(4\chi_{C})^{2}] = E[16\chi_{C}] = 4\pi$. Then
+
+$$
+\text{Var}[\hat{\pi}] = E[(4\chi_{C})^{2}] - E[4\chi_{C}]^{2} = {1 \over n} (4\pi - \pi^{2}) = {1 \over n} \pi (4 - \pi)
+$$
+
+(You might start to recognize the variance of a binomial distribution here, which is another way of deriving this result.)
+
+This means that typical errors will be of the order of 
+
+$$
+\sigma(\hat{\pi}) = \sqrt{\text{Var}[\hat{\pi}]} = {\sqrt{\pi(4 - \pi)} \over n} \simeq {1.64 \over \sqrt{n}}
+$$
+
+The code is in the next cell. 
+
+```{r}
+a = 1:6
+
+ns = 10^a
+
+sigmas = sqrt(pi * (4 - pi)) / sqrt(ns)
+
+sigmas
+```
