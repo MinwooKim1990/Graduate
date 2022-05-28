@@ -1,0 +1,25 @@
+Work took 0.001912 seconds
+Work took 0.001234 seconds
+Work took 0.001206 seconds
+     0 ||r||/||r0|| = 1
+Work took 0.000639 seconds
+   100 ||r||/||r0|| = 0.00320287
+Work took 0.000635 seconds
+   200 ||r||/||r0|| = 0.0018596
+Work took 0.000492 seconds
+   300 ||r||/||r0|| = 0.00135849
+Work took 0.000537 seconds
+   400 ||r||/||r0|| = 0.00108396
+Work took 0.000465 seconds
+   500 ||r||/||r0|| = 0.000904829
+Work took 0.000464 seconds
+   600 ||r||/||r0|| = 0.000776414
+Work took 0.000462 seconds
+   700 ||r||/||r0|| = 0.000678938
+Work took 0.000464 seconds
+   800 ||r||/||r0|| = 0.000602047
+Work took 0.000466 seconds
+   900 ||r||/||r0|| = 0.000539689
+Work took 0.000462 seconds
+  1000 ||r||/||r0|| = 0.00048804
+Work took 2.346542 seconds
