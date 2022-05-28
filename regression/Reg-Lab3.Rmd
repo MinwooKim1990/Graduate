@@ -1,0 +1,135 @@
+---
+title: "ASML Regression, Computer Lab 3"
+author: "Jochen Einbeck"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+## Real estate prize data: Preliminaries
+
+We consider again the data set on real estate prizes extracted from [kaggle](https://www.kaggle.com/quantbruce/real-estate-price-prediction/).
+
+You can read in the data via
+
+```{r}
+realestate<- read.csv("http://www.maths.dur.ac.uk/~dma0je/Data/Realestate.csv", header=TRUE)
+```
+
+We do the same simplifications of long variable names as in previous practicals:
+
+```{r}
+colnames(realestate)[8]<- "Y"
+colnames(realestate)[5]<- "X4.stores"
+colnames(realestate)[4] <- "X3.MRT"
+```
+
+## Multiple regression using ridge and lasso penalties
+
+Use the following code to load R package `glmnet` and to produce a $414 \times 6$ data matrix which only contains the predictor variables:
+
+```{r}
+require(glmnet)
+realX<-  as.matrix(realestate[,2:7])
+dim(realX)
+```
+
+Carry out ridge regression using `glmnet` as in the lecture, and apply `plot` on the fitted object with option `xvar="lambda"` to see the trajectories of estimated parameters.
+
+```{r}
+# ...
+
+```
+
+We next carry out cross-validation in order to select the penalty parameter $\lambda$. You can use the following code sequence in order to do this. Make it clear to yourself what this code actually does.
+
+```{r}
+real.ridge.cv=  cv.glmnet(realX, realestate$Y, alpha=0 )
+par(mfrow=c(1,1), mai=c(0.8,0.8,0.8,0.8), cex.axis=2)
+plot(real.ridge.cv)
+real.ridge.cv$lambda.min
+real.ridge.coef<- coef(real.ridge.cv, s="lambda.min")[,1]
+```
+
+Now reproduce all steps carried out for ridge regression, this time using the lasso (that is, `alpha=1`).
+
+```{r}
+# ...
+
+```
+
+Create a $3 \times 6$ matrix which in the first row has the parameter estimates from ordinary least squares regression, in the second row those from ridge regression, and in the third row those from the lasso. Give each row appropriate names.
+
+```{r}
+# ...
+
+```
+
+Adapt the previously introduced bootstrap methodology to the ridge regression scenario, and save the standard errors of the model parameters into an object `real.ridge.boot.sd`
+
+```{r}
+# ...
+
+```
+
+Create a new $7 \times 2$ matrix `real.ridge.fit` which in the first row contains the ridge estimates and in the second row their bootstrap standard errors. Then devide the first row by the second, yielding "bootstrapped ridge regression t values". Visualize these through a \`barplot' and draw horizontal lines at $\pm 2$. Interpret.
+
+```{r}
+# ...
+
+```
+
+## Bayesian ridge regression
+
+Now use Jags to implement a Bayesian version of ridge regression. It is advised to use again scaled predictors for this purpose.
+
+*Note*: The only actual difference to the Jags implementation for usual multiple linear regression is that the prior precision of the `beta[j]` is now `tau*lambda`, for some fixed ridge parameter `lambda` for which you can assign an arbitrary value, such as 25, to start with. Of course, at this stage, we do not know which values of $\lambda$ are good or bad, so any other value (rather than 25) could be taken here. The value 25 was a one-shot guess resulting in estimates that are close to those from the frequentist ridge estimator.
+
+```{r}
+# ...
+
+```
+
+```{r}
+# model4_string <-
+
+```
+
+Execute the actual MCMC sampling and the collection of posterior samples as before:
+
+```{r}
+# require(rjags)
+# model4 <- ...
+
+# ...
+
+# postmod4.samples <-
+```
+
+These need again be un-scaled. Compare the posterior mean estimates directly with the frequentist ridge estimates.
+
+```{r}
+# rbind(
+# real.ridge.coef[2:7],
+# rowMeans(t(postmod4.samples[,1:6])/S)
+# )
+```
+
+Now, modify your code to give a suitable prior to $\lambda$, and estimate it alongside the other model parameters in Jags.
+
+```{r}
+# model5_string <-
+
+```
+
+```{r}
+# model5 <-
+
+```
+
+Compare the posterior mean estimates again to previously fitted models, and summarize conclusions.
+
+```{r}
+# ...
+```

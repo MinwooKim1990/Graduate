@@ -1,0 +1,604 @@
+---
+title: "Summative assignment for ASML Regression"
+author: "Minwoo Kim (tbdr69)"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook:
+    df_print: paged
+  word_document: default
+---
+
+# General Instructions
+
+Please go through the R notebook below, and carry out the requested tasks. You will provide all your answers directly into this .Rmd file. Add code into the R chunks where requested. You can create new chunks where required. Where text answers are requested, please add them directly into this document, typically below the R chunks, using R Markdown syntax as adequate.
+
+At the end, you will submit both your worked .Rmd file, and a \`knitted' PDF version, through DUO.
+
+**Important**: Please ensure carefully whether all chunks compile, and also check in the knitted PDF whether all R chunks did *actually* compile, and all images that you would like to produce have *actually* been generated. **An R chunk which does not compile will give zero marks, and a picture which does not exist will give zero marks, even if some parts of the required code are correct.**
+
+**Note**: It is appreciated that some of the requested analyses requires running R code which is not deterministic. So, you will not have full control over the output that is finally generated in the knitted document. This is fine. It is clear that the methods under investigation carry uncertainty, which is actually part of the problem tackled in this assignment. Your analysis should, however, be robust enough so that it stays in essence correct under repeated execution of your data analysis.
+
+# Reading in data
+
+We consider data from an industrial melter system. The melter is part of a disposal procedure, where a powder (waste material) is clad in glass. The melter vessel is continuously filled with powder, and raw glass is discretely introduced in the form of glass frit. This binary composition is heated by induction coils, positioned around the melter vessel. Resulting from this heating procedure, the glass becomes molten homogeneously [(Liu et al, 2008)](https://aiche.onlinelibrary.wiley.com/doi/full/10.1002/aic.11526).
+
+Measurements of 15 temperature sensors `temp1`, ..., `temp15` (in $^{\circ} C$), the power in four induction coils `ind1`,..., `ind4`, the `voltage`, and the `viscosity` of the molten glass, were taken every 5 minutes. The sample size available for our analysis is $n=900$.
+
+We use the following R chunk to read the data in
+
+```{r}
+# Clear Environment
+rm(list=ls(all=T))
+melter<-read.table("http://maths.dur.ac.uk/~dma0je/Data/melter.dat", header=TRUE)
+
+```
+
+If this has gone right, then the following code
+
+```{r}
+is.data.frame(melter)
+dim(melter)
+```
+
+should tell you that `melter` is a data frame of dimension $900 \times 21$. Otherwise something has gone wrong, and you need to start again.
+
+To get more familiar with the data frame, please also execute
+
+```{r}
+print('Power of induction must be over 0 because (Voltage and Current is positive)')
+print('And viscosity also need to be over 0 because the second law of thermodynamics requires all fluids to have positive viscosity. Zero viscosity is observed only at near 0 Kelvin temperatures in superfluids.')
+# Delete unreliable values
+melter<-subset(melter, !rowSums(melter < 0))
+melter<-melter[melter$viscosity != 0, ]
+
+#head(melter)
+colnames(melter)
+boxplot(melter, las=2)
+dim(melter)
+```
+
+# Task 1: Principal component analysis (10 marks)
+
+We consider initially only the 15 variables representing the temperature sensors. Please create a new data frame, called `Temp`, which contains only these 15 variables. Then carry out a principal component analysis. (Use your judgement on whether, for this purpose, the temperature variables require scaling or not). Produce a screeplot, and also answer the following questions: How many principal components are needed to capture 90% of the total variation? How many are needed to capture 98%?
+
+**Answer:**
+
+1\. The temperature variables require scaling or not
+
+:   In temperature, variables only have the same unit, so it does not need to scale.
+
+2\. How many principal components are needed to capture 90% of the total variation?
+
+:   To over 90%, it needed to capture 4 Principal Component from Cumulative variance plot.
+
+3\. How many are needed to capture 98%?
+
+:   For 98%, it needed to capture 7 Principal Component from Cumulative variance plot.
+
+```{r}
+# About scailing
+print('Scaling: In temperature, variables only have the same unit, so it does not need to scale.')
+library(graphics)
+library(factoextra)
+# Temperature variable slicing and make viscosity variable
+Temp<-melter[,7:21]
+Vis<-melter$viscosity
+# Principal Componant Analysis with Temperature variables
+Temp.comp <- prcomp(Temp, center = TRUE, scale = TRUE)
+# Screeplot
+fviz_eig(Temp.comp)
+screeplot(Temp.comp, npcs = 15, type = "lines", main="Screeplot of Temperature")
+abline(h = 0.48, col="#68246d90", lty=5)
+abline(v = 5, col="#68246d90", lty=5)
+legend("topright", legend=c("Variance = 0.48"), col="#68246d90", lty=5, cex=0.6, box.lty=0)
+# Cumulative variance plot with about 90% and 98% variance
+Lambda <- Temp.comp$sdev^2
+cumpro <- cumsum(Lambda / sum(Lambda))
+plot(cumpro[0:15], xlab = "PC Number", ylab = "Amount of explained variance", main = "Cumulative variance plot")
+legend("topleft", legend=c("Variance 90.7% @ PC4",'Variance 98.5% @ PC7'), col=c(2,3), lty=5, cex=0.6, box.lty=0)
+abline(h = 0.907, col=2, lty=5)
+abline(v = 4, col=2, lty=5)
+abline(h = 0.985, col=3, lty=5)
+abline(v = 9, col=3, lty=5)
+# PCA plot
+fviz_pca_ind(Temp.comp, col.ind = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#68246d90"), repel = TRUE)
+fviz_pca_biplot(Temp.comp, repel = TRUE, col.var = "#2E9FDF", col.ind = "#68246d90")
+print('How many principal components are needed to capture 90% of the total variation? ')
+print('To over 90% it needed to capture 4 Principal Component')
+print('How many are needed to capture 98%?')
+print('For 98% it needed to capture 7 Principal Componant')
+```
+
+# Task 2: Multiple linear regression (20 marks)
+
+We consider from now on, and for the remainder of this assignment, `viscosity` as the response variable.
+
+Fit a linear regression model, with `viscosity` as response variable, and all other variables as predictors, and produce the `summary` output of the fitted model. In this task, we are mainly interested in the standard errors of the estimated coefficients. Create a vector, with name `melter.fit.sd`, which contains the standard errors of all estimated coefficients, except the intercept. (So, this vector should have length 20). Then produce a `barplot` of these standard errors (where the height of each bar indicates the value of the standard error of the respective coefficients). Please use blue color to fill the bars of the barplot.
+
+**Answer:**
+
+##### In following all methods' Standard Error (SE) was calculated as Standard Deviation (SD). Although some of the methods have sampling procedures, this needs to be compared with other methods, so the Standard Error of Mean would not fit and could count as one sampling in this one dataset case. So from here, Standard Error = Standard Deviation.
+
+```{r}
+# Fit multiple Linear regression model
+vis.model<-lm(viscosity~., data=melter)
+# View results of model
+vis.summary<-summary(vis.model)
+print(vis.summary$coefficients)
+# Get the standard error of Linear regression
+melter.fit.sd<-vis.summary$coefficients[,2][2:21]
+# Name of variables
+xname<-colnames(melter[2:21])
+# Bar Plot
+barplot(melter.fit.sd, col='blue',names.arg=c(xname),ylim=c(0,5),main='Standard Deviation of coefficient in Linear regression', ylab="Standard_Deviation", xlab="Variables",las=2, cex.names = 0.8)
+```
+
+Now repeat this analysis, but this time using a Bayesian linear regression. Use adequate methodology to fit the Bayesian version of the linear model considered above. It is your choice whether you would like to employ ready-to-use R functions which carry out this task for you, or whether you would like to implement this procedure from scratch, for instance using `jags`.
+
+In either case, you need to be able to extract posterior draws of the estimated parameters from the fitted object, and compute their standard deviations. Please save these standard deviations, again excluding that one for the intercept, into a vector `melter.bayes.sd`. Produce now a barplot which displays both of `melter.fit.sd` and `melter.bayes.sd` in one plot, and allows a direct comparison of the frequentist and Bayesian standard errors (by having the corresponding bars for both methods directly side-by-side, with the Bayesian ones in red color). The barplot should be equipped with suitable labels and legends to enable good readability.
+
+Comment on the outcome.
+
+**Answer**:
+
+```{r}
+library(rstanarm)
+library(rjags)
+# Linear bayesian regression function in  rstanarm
+vis.bayes <- stan_glm(viscosity~., data=melter, seed=1, refresh = 0)
+```
+
+```{r}
+library(ggplot2)
+library(reshape2)
+# Summary of Bayesian linear regression
+vis.bayes.summary<-as.data.frame(summary(vis.bayes,digits = 8))
+# Standard deviation of Bayesian linear regression
+melter.functionbayes.sd<-vis.bayes.summary$sd[2:21]
+# Slice of Melter
+melter.re<-melter[,2:21] 
+```
+
+```{r}
+# Need to keep the standard deviation's for later unscaling
+Stan <- apply(melter.re, 2, sd)
+X <- model.matrix(vis.model)
+bayes.string <- "model{
+  for(i in 1:N){
+    y[i] ~ dnorm(mu[i], tau)
+    mu[i] <- beta0+beta%*%X[i,]
+  }
+  # Prior distribution on mean
+    beta0 ~ dnorm(0, 0.0001);
+    for (j in 1:20){
+      beta[j]~  dnorm(0, 0.0001)
+    }
+    tau  ~ dgamma(0.01, 0.01)
+    sigma<- 1/sqrt(tau)
+}"
+# Do Jags Baysian linear regression and get result
+bayes.model <- jags.model(textConnection(bayes.string), data = list(X=scale(melter.re), y=Vis,N=dim(as.matrix(melter.re))[1]))
+update(bayes.model,10000)
+summary(bayes.model)
+posterior.samples = coda.samples(bayes.model, c("beta0", "beta", "sigma"), 10000)[[1]]
+# Get Standard deviation of Jags
+melter.bayes.sd <- round(apply(t(posterior.samples[,1:20])/Stan, 1,sd), digits=4)
+```
+
+```{r}
+# Plot Boxplot about Posterior distribution
+coe.jags<- rowMeans(t(posterior.samples[,1:20])/Stan)
+boxplot(as.data.frame(t(t(posterior.samples[,1:20])/Stan)),names=xname,main='Posterior distribution of Baysian Linear regression', ylab="Value", xlab="Variables",las=2, cex = 0.8)
+points(as.data.frame(coe.jags), col=2)  
+legend("topright", legend=c("Mean value"), col=c(2), pch=1, cex=0.6, box.lty=0)
+# Making dataset of standard deviation
+df <- as.data.frame(cbind(melter.fit.sd, melter.functionbayes.sd, melter.bayes.sd))
+val<-matrix(0, nrow = 3, ncol = 20)
+# An empty matrix is a necessary requirement prior to copying data
+val[1,] <- df$melter.fit.sd
+val[2,] <- df$melter.functionbayes.sd
+val[3,] <- df$melter.bayes.sd
+# Plot barplot to compare
+barplot(val, names.arg = xname, beside = TRUE,ylim=c(0,5), col = c('blue','yellow','skyblue'), legend.text = c("Linear", "Function Bayes",'Bayes.jags'),main='Standard Deviation of coefficient', ylab="Standard_Deviation", xlab="Variables",las=2, cex.names = 0.8)
+# Conclusion
+print('From the barplot, Jags are a little more accurate than functional Bayesian linear regression. So after that, using Jags Bayesian linear regression version.')
+print('From the barplot, Linear regression and functional Bayes linear regression is not much different. But if it uses the Jags Bayesian linear regression, the standard deviation of coefficients are slightly less than other methods.
+It seems like calculating posterior with prior manually makes less loss than functional Bayesian linear regression.')
+```
+
+# Task 3: The Lasso (20 marks)
+
+We would like to reduce the dimension of the currently 20-dimensional space of predictors. We employ the LASSO to carry out this task. Carry out this analysis, which should feature the following elements:
+
+-   the trace plot of the fitted coefficients, as a function of $\log(\lambda)$, with $\lambda$ denoting the penalty parameter;
+-   a graphical illustration of the cross-validation to find $\lambda$;
+-   the chosen value of $\lambda$ according to the `1-se` criterion, and a brief explanation of what this criterion actually does;
+-   the fitted coefficients according to this choice of $\lambda$.
+
+**Answer:**
+
+-   the chosen value of $\lambda$ according to the `1-se` criterion, and a brief explanation of what this criterion actually does :
+
+    Lambda.1se offers the most regularized model such that error is within one standard error of the minimum. This is fundamental for a much more conservative approach to selection. The number of nonzero coefficients is shown along the top of the plot. Minimum Lambda is the value of lambda that gives minimum mean cross-validated error.
+
+    In this dataset, for model selection, lambda.1se was selected.
+
+```{r}
+library(glmnet)
+set.seed(1)
+# Fit the model viscosity-variables to generalized linear model to find trace of coefficients
+model <- glmnet(melter[,2:21], Vis, alpha = 1, family="gaussian")
+plot(model, xvar="lambda", cex.axis=2, cex.lab=1.1, cex=1.1)
+# Perform cross-validation to find lambda values
+cv.melter<-cv.glmnet(as.matrix(melter[,2:21]), Vis, alpha=1, nfold=100)
+# Find optimal lambdas value
+best.lambda <- cv.melter$lambda.min
+se.lambda <- cv.melter$lambda.1se
+# Plot cross-validation plot to find lambda
+par(mfrow=c(1,1))
+plot(cv.melter)
+legend("topleft", legend=c("Minimum lambda",'one-standard-error lambda'), col=c('#68246d90',2), lty=5, cex=0.6, box.lty=0)
+abline(v = log(best.lambda), col="#68246d90", lty=5)
+abline(v = log(se.lambda), col=2, lty=5)
+# Find coefficients of best model with one-standard-error lambda
+best.model <- glmnet(melter[,2:21], Vis, lambda=se.lambda, alpha = 1, family="gaussian")
+cv.lasso.summary<-summary(cv.melter)
+# Clear NaN and Inf value in coefficients and find variables index
+coe<-as.matrix(coef(best.model))
+coe[is.nan(coe)] <- 0
+coe[is.infinite(coe)] <- 0
+coe.val<-coe[which(coe[,1] != 0)]
+coe.ind<-rownames(coe)[which(coe[,1] != 0)]
+# Question and Conclustion
+print('The chosen value of lambda according to the 1-se criterion, and a brief explanation of what this criterion actually does')
+print('Lambda.1se offers the most regularized model such that error is within one standard error of the minimum. This is fundamental for a much more conservative approach to selection. The number of nonzero coefficients is shown along the top of the plot. Minimum Lambda is the value of lambda that gives minimum mean cross-validated error.
+In this dataset, for model selection, lambda.1se was selected.')
+# Get the all coefficient data and find standard deviation
+meldf<-as.data.frame(t(as.matrix(cv.melter$glmnet.fit$beta)))
+melter.lasso.cv.sd<-apply(meldf,2,sd)
+# Make dataset for barplot
+df <- as.data.frame(cbind(melter.fit.sd, melter.bayes.sd, melter.lasso.cv.sd))
+val<-matrix(0, nrow = 3, ncol = 20)
+# An empty matrix is a necessary requirement prior to copying data
+val[1,] <- df$melter.fit.sd
+val[2,] <- df$melter.bayes.sd
+val[3,] <- df$melter.lasso.cv.sd
+#An empty matrix is a necessary requirement prior to copying data
+barplot(val, names.arg = xname, beside = TRUE,ylim=c(0,5), col = c('blue','skyblue','purple'), legend.text = c("Linear",'Bayes.jags','Lasso.CV'),main='Standard Deviation of coefficient', ylab="Standard_Deviation", xlab="Variables",las=2, cex.names = 0.8)
+# Conclustion 2
+# From the Standard Deviation result CV.Lasso does not have merit, so after that delete
+```
+
+Next, carry out a Bayesian analysis of the lasso. Visualize the full posterior distributions of all coefficients (except the intercept) in terms of boxplots, and also visualize the resulting standard errors of the coefficients, again using a barplot (with red bars).
+
+Give an interpretation of the results, especially in terms of the evidence that this analysis gives in terms of inclusion/non-inclusion of certain variables.
+
+**Answer:**
+
+Lasso have a variable selection because Lasso regression converges to zero at a certain point in time, and several variables can be non-selective, and there are L1 penalty, so Lasso allows the absolute value of the regression coefficient to come within a certain level.
+
+In Bayesian, Lasso regression has MCMC iteration. Laplace prior will produce an identical reducing effect to the L1 penalty during the iteration (blasso function in R has reversible jump that affect to variable selection). In this data, a variable selection criterion is the number of counting( by a person in the general case, but posterior probability could use ). If the count is high, the posterior probability is also higher than other posterior probability. In this case, select 9000 counts for the selection.
+
+The normal Lasso will probably be more efficient (quick) to compute than the Bayesian Lasso.
+
+```{r}
+library(monomvn)
+set.seed(1)
+# Fit the model viscosity and variables to Bayesian Lasso
+model2 <- blasso(melter[,2:21], Vis, T=10000)
+post <- summary(model2)$bn0
+# Plot the Posterior distribution and barplot of coefficients
+boxplot(model2$beta, names=xname,main='Posterior distribution of Baysian Lasso', ylab="Coefficient Value", xlab="Variables",las=2, cex = 0.8)
+points(apply(model2$beta,2,mean),col=2)
+legend("topright", legend=c("Mean value"), col=c(2), pch=1, cex=0.6, box.lty=0)
+barplot(t(post),names.arg=xname,col=c('#68246d90'),ylim=c(0,1), main='Posterior probability of Baysian Lasso', ylab="Probability", xlab="Variables",las=2)
+# Find standard deviation and plot barplot
+bay.sd<-apply(model2$beta,2,sd)
+barplot(bay.sd, names.arg=xname, col='red',ylim=c(0,5),main='Standard deviation of Baysian Lasso', ylab="Standard_Deviation", xlab="Variables",las=2, cex.names = 0.8)
+# Clear NaN and Inf value in coefficients and find gene name index
+coe2<-as.matrix(model2$beta)
+# Count number of coefficients which selected during MCMC
+num<-as.data.frame(apply(coe2, 2, function(c)sum(c!=0)))
+rownames(num)<-rownames(coe)[2:21]
+colnames(num)<-c('Count')
+coe2[is.nan(coe2)] <- 0
+coe2[is.infinite(coe2)] <- 0
+coe.val2<-coe2[which(coe2[,1] != 0)]
+coe.ind2<-rownames(coe2)[which(coe2[,1] != 0)]
+# Make dataset for barplot
+df <- as.data.frame(cbind(melter.fit.sd, melter.bayes.sd, bay.sd))
+val<- matrix(0, nrow = 3, ncol = 20)
+# An empty matrix is a necessary requirement prior to copying data
+val[1,] <- df$melter.fit.sd
+val[2,] <- df$melter.bayes.sd
+val[3,] <- df$bay.sd
+barplot(val, names.arg = xname, beside = TRUE,ylim=c(0,5), col = c('blue','skyblue','red'), legend.text = c("Linear",'Bayes.jags','Bayes.Lasso'),main='Standard Deviation of coefficient', ylab="Standard_Deviation", xlab="Variables",las=2, cex.names = 0.8)
+# Auxiliary data for conclusion
+coe.val2<-coe2[which(coe2[,1] != 0)]
+coe.ind2<-rownames(coe2)[which(coe2[,1] != 0)]
+coe.val2<-num[which(num$Count>=7000),1]
+coe.ind2<-rownames(num)[which(num$Count>=7000)]
+print('Variable selection of original Lasso regression')
+print(coe.ind[2:12])
+print('Variable selection of Bayesian Lasso regression and number of selected in MCMC iteration')
+print(coe.ind2)
+print(as.data.frame(as.matrix(rbind(xname,post,num$Count))))
+# Question and Conclustion
+print('Give an interpretation of the results, especially in terms of the evidence that this analysis gives in terms of inclusion/non-inclusion of certain variables.')
+print('Lasso have a variable selection because Lasso regression converges to zero at a certain point in time, and several variables can be non-selective, and there are L1 penalty, so Lasso allows the absolute value of the regression coefficient to come within a certain level.')
+print('In Bayesian, Lasso regression has MCMC iteration. Laplace prior will produce an identical reducing effect to the L1 penalty during the iteration (blasso function in R has reversible jump that affect to variable selection). In this data, a variable selection criterion is the number of counting( by a person in the general case, but posterior probability could use ). If the count is high, the posterior probability is also higher than other posterior probability. In this case, select 9000 counts for the selection.
+The normal Lasso will probably be more efficient (quick) to compute than the Bayesian Lasso.')
+```
+
+# Task 4: Bootstrap (20 marks)
+
+A second possibility to assess uncertainty of any estimator is the Bootstrap. Implement a nonparametric bootstrap procedure to assess the uncertainty of your frequentist lasso fit from Task 3.
+
+Produce boxplots of the full bootstrap distributions for all coefficients (similar as in Task 3).
+
+Then, add (green) bars with the resulting standard errors to the bar plot produced in Task 3, allowing for comparison between Bootstrap and Bayesian standard errors. Interpret the results.
+
+**Answer:**
+
+Interpret the results
+
+Nonparametric bootstrap usually does not use prior distribution; instead, it uses re-sampling from the empirical CDF. So it is quite good if we do not know about distribution, but if we know the value of the data set, it will be inaccurate as parametric bootstrap.
+
+Nonparametric bootstrap estimating with linear regression has large standard deviation on coefficients than other methods. It is bigger than parametric linear regression. Usually, Nonparametric method is less powerful than the parametric method. Because they lose their relationships between variables, that means it is not easily interpreted through the predict function. So, according to the data, Nonparametric makes more errors in some coefficients.
+
+I tried to compare estimating with linear regression and Lasso in Nonparametric method. If the Nonparametric bootstrap with lasso regression has a lower standard deviation than the linear regression model and Bayesian Lasso, it looks like a better way to choose a predicting model. However, the data of Nonparametric option has less power in interpreting the relationship in data. Therefore it is not proper to compare standard deviation with other methods. Especially Lasso estimating makes the variable selection, so the variable data will be reduced in each iteration which may make comparing standard deviation more unreliable.
+
+```{r}
+set.seed(1)
+# Make bootstrap procedure in original data to make Nonparametric
+# Set variables
+B <- 1000
+n <- dim(melter)[1]
+Ynew <- matrix(0, n, B)
+X <- model.matrix(vis.model)
+Y <- Vis
+Xnew<-list()
+p<- dim(X)[2]
+# Randomly choose the sample and regenerate data with Nonparametric
+for (j in 1:B){
+  Xnew[[j]]<- X
+  for (i in 1:n){
+    h<-sample(n,1)
+    Xnew[[j]][i,]<- X[h,]
+    Ynew[i,j] <-Y[h]
+  }
+}
+# Set variable
+all.real.boot <-matrix(0, B, p)
+# Store the  linear regression model and coefficients of nonparametric data
+for (i in 1:B){
+  real.fitb<-lm(Ynew[,i]~Xnew[[i]][,2:21])
+  all.real.boot[i,]<- summary(real.fitb)$coef[,1]
+  # Fitting with Lasso for the test version
+  #real.fitb<-glmnet(Xnew[[i]][,2:21], Ynew[,i], lambda=se.lambda, alpha = 1, family="gaussian")
+  #temp<-t(as.matrix(coef(real.fitb)))
+  #all.real.boot[i,]<- temp
+}
+# store data and calculate the standard deviation
+all.boot2.sd<- apply(all.real.boot, 2, sd)
+both.real.sd <- rbind( summary(vis.model)$coef[,2], all.boot2.sd)
+both.real.sd
+boot.coe<-all.real.boot[,2:21]
+boot.sd<-all.boot2.sd[2:21]
+# Boxplot of coefficients which is generated by nonparametric way
+boxplot(boot.coe, names=xname,main='Nonparametric bootstrap coefficients', ylab="Coefficient value", xlab="Variables",las=2, cex = 0.8)
+# Barplot of standard deviation of bootstrap way
+barplot(boot.sd, names.arg=xname,ylim=c(0,5), col='green',main='Standard Deviation of coefficient in Nonparametric Bootstrap', ylab="Standard_Deviation", xlab="Variables",las=2, cex.names = 0.8)
+# Make data frame for bar plot
+df <- as.data.frame(cbind(melter.fit.sd, melter.bayes.sd, bay.sd, boot.sd))
+val<- matrix(0, nrow = 4, ncol = 20)
+# An empty matrix is a necessary requirement prior to copying data
+val[1,] <- df$melter.fit.sd
+val[2,] <- df$melter.bayes.sd
+val[3,] <- df$bay.sd
+val[4,] <- df$boot.sd
+# Plot barplot to compare
+barplot(val, names.arg = xname, beside = TRUE,ylim=c(0,5), col = c('blue','skyblue','red','green'), legend.text = c("Linear",'Bayes.jags','Bayes.Lasso','Nonpara_bootstrap'),main='Standard Deviation of coefficient', ylab="Standard_Deviation", xlab="Variables",las=2, cex.names = 0.8)
+# Qestion and Conclustion
+print('Interpret the results.')
+print('Nonparametric bootstrap usually does not use prior distribution; instead, it uses re-sampling from the empirical CDF. So it is quite good if we do not know about distribution, but if we know the value of the data set, it will be inaccurate as parametric bootstrap.')
+print('Nonparametric bootstrap estimating with linear regression has large standard deviation on coefficients than other methods. It is bigger than parametric linear regression. Usually, Nonparametric method is less powerful than the parametric method. Because they lose their relationships between variables, that means it is not easily interpreted through the predict function. So, according to the data, Nonparametric makes more errors in some coefficients.')
+print('I tried to compare estimating with linear regression and Lasso in Nonparametric method. If the Nonparametric bootstrap with lasso regression has a lower standard deviation than the linear regression model and Bayesian Lasso, it looks like a better way to choose a predicting model. However, the data of Nonparametric option has less power in interpreting the relationship in data. Therefore it is not proper to compare standard deviation with other methods. Especially Lasso estimating makes the variable selection, so the variable data will be reduced in each iteration which may make comparing standard deviation more unreliable.')
+```
+
+# Task 5: Model choice (10 marks)
+
+Based on all considerations and analyses carried out so far, decide on a suitable model that you would present to a client, if you had been the statistical consultant.
+
+Formulate the model equation in mathematical notation.
+
+Refit your selected model using ordinary Least Squares. Carry out some residual diagnostics for this fitted model, and display the results. Discuss these briefly.
+
+**Answer:**
+
+1.  Mathematical notation
+
+Bayesian Lasso
+
+For exact notation, according to the regression course slide R3, page 47 referenced the book 'Statistical Learning with Sparsity: The LASSO and Generalizations.' with section 6.1 expressing the Mathematical notation of Bayesian Lasso. It also referenced the approach of Park and Casella (2008), which paper wrote at the University of Florida, Gainesville, Florida, USA.
+
+$$
+\begin{align}
+y \mid \beta, \lambda, \sigma \sim N(X\beta, \sigma^{2}I_{N\times N})\cdots (1)\\ 
+\beta \mid \lambda , \sigma \sim \prod_{j=1}^{p}{\lambda \over 2\sigma}e^{-{\lambda \over \sigma}\lvert \beta_{j}\rvert}\cdots (2)\\
+\end{align}
+$$ Laplacian prior (2). Under this model, it is easy to show that the negative log posterior density like under
+
+$$
+\begin{align}
+{1 \over 2\sigma^{2}}\lVert y-X\beta\rVert_{2}^{2}+{\lambda \over \sigma}\lVert \beta\rVert_{1}
+\end{align}
+$$ For $\lambda$ fixed, with Laplacian prior density for $\beta$ $$
+\begin{align}
+p(\beta)={1 \over (2r)^{p}}e^{(-{\lVert \beta\rVert_{1}\over r})}
+\end{align}
+$$ under a normal response model $$
+\begin{align}
+y \sim N_{n}(X\beta,I_{n}\sigma^2)
+\end{align}
+$$
+
+2.  Carry out some residual diagnostics for this fitted model
+
+From the residual plots it is not much different from the original Linear regression, but it looks more concentrated than the linear model because some of the variables were not selected, making residuals look more concentrated.
+
+By the R squared point, refit Bayes Lasso model has small R squared than Linear regression. It means that the fitting is a little bit worse than full variable linear regression. But it covers 94% of the R squared point. That is, only 8 variables can cover many interpret of the dataset.
+
+```{r}
+# Choose the model with Bayesian Lasso model  the reason because  Bayesian lasso have generally small standard deveations in coefficients and with the MCMC process, it is easy to select some variables
+# Select the variables with over 9000 counts it is about 90% of selection.
+coe.val2<-coe2[which(coe2[,1] != 0)]
+coe.ind2<-rownames(coe2)[which(coe2[,1] != 0)]
+print(num[which(num$Count>=9000),1])
+coe.val2<-num[which(num$Count>=9000),1]
+coe.ind2<-rownames(num)[which(num$Count>=9000)]
+print(coe.ind2)
+```
+
+```{r}
+# Do refit the selected variables with linear model and find the summary
+refit.bayes.lasso<-lm(viscosity~voltage+ind2+temp1+temp2+temp8+temp9+temp14+temp15, data=melter)
+summary.refit.bayes.lasso<-summary(refit.bayes.lasso)
+# Residuals plots of linear regression and refit Bayesian Lasso and Q-Q plot for linear regression and Baysian Lasso model
+op <- par(pty = "s", mfrow = c(2, 2),cex=0.6)
+# Residual plot of linear regression
+plot(vis.model)
+# Residual plot of selected variables fitted model
+plot(refit.bayes.lasso)
+# QQ Plot of Linear regression and selected variables fitting
+op <- par(pty = "s", mfrow = c(1, 2))
+qqnorm(vis.model$residuals, col="#68246d90", main='Linear regression Q-Q Plot')
+qqline(vis.model$residuals)
+qqnorm(refit.bayes.lasso$residuals, col="#68246d90", main='Bayes LASSO Q-Q Plot')
+qqline(refit.bayes.lasso$residuals)
+# Find R squared score
+print(vis.summary$r.squared)
+print(vis.summary$adj.r.squared)
+print(summary.refit.bayes.lasso$r.squared)
+print(summary.refit.bayes.lasso$adj.r.squared)
+# Percentage of covering with selected variables
+print(summary.refit.bayes.lasso$r.squared/vis.summary$r.squared*100)
+# Question and conclusion
+print('Discuss these briefly')
+print('From the residual plots it is not much different from the original Linear regression, but it looks more concentrated than the linear model because some of the variables were not selected, making residuals look more concentrated.')
+print('By the R squared score, refit Bayes Lasso model has small R squared than Linear regression. It means that the fitting is a little bit worse than full variable linear regression. But it covers 94% of the R squared score. That is, only 8 variables can cover many interpret of the dataset.')
+```
+
+We will refer to the model produced in this task as (T5) henceforth.
+
+# Task 6: Extensions (20 marks)
+
+For this task, take the model (T5) as the starting point. Then consider extensions of your model in TWO of the following THREE directions (of your choice).
+
+(1) Replace the temperature sensor variables in model (T5) by an adequate number of principal components (see Task 1).
+
+(2) Replace the `voltage`, and the remaining induction variables, by nonparametric terms.
+
+(3) Consider a transformation of the response variable `viscosity`.
+
+Each time, report the fitted model through adequate means. Discuss whether the corresponding extension is useful, giving quantitative or graphical evidence where possible.
+
+Give a short discussion on whether any of your extensions have led to an actual improvement compared to model (T5).
+
+**Answer:**
+
+I choose all three extensions for compare the results and write short report in each case in last part with some graphical plot.
+
+```{r}
+# Replace the temperature sensor variables in model (T5) by an adequate number of principal components (see Task 1).
+library("scatterplot3d")
+# Reset the data with selected variables
+re.melter2<-melter[c(coe.ind2)]
+# Proceed the PCA with Temperature variables
+pca.re.melter2<-prcomp(re.melter2[3:8], center = TRUE, scale = TRUE)
+# Plot screeplot
+fviz_eig(pca.re.melter2)
+# Plot Cumulative variance
+Lambda2 <- pca.re.melter2$sdev^2
+cumpro2 <- cumsum(Lambda2 / sum(Lambda2))
+plot(cumpro2, xlab = "PC Number", ylab = "Amount of explained variance", main = "Cumulative variance plot")
+legend("topleft", legend=c("Variance 98.5% @ PC4"), col=c(2), lty=5, cex=0.6, box.lty=0)
+abline(h = 0.985, col=2, lty=5)
+abline(v = 4, col=2, lty=5)
+# Get the variance of PCA and find contribution of variables
+pca.var2 <- get_pca_var(pca.re.melter2)
+contrib2 <- pca.var2$contrib
+row.sum2<-rowSums(contrib2[,1:4])
+# Add PCA elements in dataset
+pc.melter2<-cbind(melter[,1],re.melter2,pca.re.melter2$x)
+colnames(pc.melter2)[1]<-'viscosity'
+# Get the summary of linear regression of PCA elements with viscosity
+summary(lm(Vis~ PC1 + PC2 + PC3 + PC4, data=pc.melter2))
+# Scatterplot
+scatterplot3d(pc.melter2[,11:13], pch = 11, color='#68246d90' , angle = 60)
+legend("topleft", legend=c('95% of elements'), fill=c('#68246d90'), pch=11, cex=0.6, box.lty=0)
+# Discuss and Conclusion
+print('Discuss whether the corresponding extension is useful, giving quantitative or graphical evidence where possible.')
+print('The benefit of PCA compared to Lasso is that PCA does not require fitting a high-dimensional model, and PCA can be applied to the multi-dimensional space before any regression takes place. If you see the 3D scatter plot, it already contains almost 95% value of multi-variables just in 3D space.')
+print('Lasso has the advantage that its variable selection is more interpretable, and the selected variables correspond to the original variables. So unlike PCA, selected variables are not easy to show graphically.')
+print('The PCA  prediction has less powerful than Bayesian Lasso selected variable prediction. It means PCA can cover multi-dimensional variables easily, but it does not easily interpret the relationship between variables.')
+```
+
+```{r}
+# Replace the voltage, and the remaining induction variables, by nonparametric terms.
+# Nonparametric dataset build
+B <- 1
+n <- dim(re.melter2)[1]
+X <- model.matrix(lm(Vis~.,data=re.melter2))
+Xnew2<-list()
+p<- dim(X)[2]
+for (j in 1:B){
+  Xnew2[[j]]<- X
+  for (i in 1:n){
+    h<-sample(n,1)
+    Xnew2[[j]][i,]<- X[h,]
+  }
+}
+# Cbind with Nonparametric Voltage and Induction2
+new.re.melter2<-as.data.frame(cbind(Xnew2[[1]][,2:3],re.melter2[,3:8]))
+# Get the summary of linear regression of Nonparametric way
+summary(lm(Vis~.,data=new.re.melter2))
+# Plot histogram of parametric and nonparametric for compare
+op <- par(pty = "s", mfrow = c(1, 2))
+hist(melter$voltage, main='Original voltage data', xlab='Value',ylab='Frequant', col='#68246d90')
+hist(new.re.melter2$voltage, main='Non-parametric voltage data', xlab='Value',ylab='Frequant', col='#68246d90')
+hist(melter$ind2, main='Original induction 2 data', xlab='Value',ylab='Frequant', col='#68246d90')
+hist(new.re.melter2$ind2, main='Non-parametric induction data', xlab='Value',ylab='Frequant', col='#68246d90')
+# Discuss and Conclusion
+print('Discuss whether the corresponding extension is useful, giving quantitative or graphical evidence where possible.')
+print('Nonparametric in voltage and induction also cannot interpret the relationship with other variables, but if it uses a histogram plot, it could represent almost the same distribution as a parametric one because it is not dependent on different parameters. In the R square score, the refit Bayesian Lasso has a better score. It is the similar result with task4 which is related to parametric and nonparametric. It cannot interpret the relationship between other variables, so the R square is smaller than refit Lasso which means a poor fit than refit lasso.')
+```
+
+```{r}
+# Consider a transformation of the response variable viscosity.
+library(MASS)
+# Find optimal lambda for Box-Cox transformation 
+co2<-lm(Vis~.,data=new.re.melter2)
+bc2 <- boxcox(Vis~.,data=re.melter2)
+bc.lambda2 <- bc2$x[which.max(bc2$y)]
+# Fit new linear regression model using the Box-Cox transformation with lambda !=0
+bc.time2<-as.data.frame(cbind(((Vis^bc.lambda2-1)/bc.lambda2),as.matrix(re.melter2)))
+bc.model2 <- lm(V1~.,data=bc.time2)
+# Get summary of linear regression of BoxCox transformation
+summary(bc.model2)
+# Plot residuals
+op <- par(pty = "s", mfrow = c(2, 2),cex=0.6)
+plot(refit.bayes.lasso)
+plot(bc.model2)
+print(summary(bc.model2)$r.squared)
+print(summary(bc.model2)$adj.r.squared)
+# Discuss and Conclusion
+print('From the refit Bayesian Lasso residual plot, it looks like Heteroskedasticity in the Residual vs Fitted plot, which means the variance of the residuals is unequal thru measured values. Like viscosity data in this dataset, a wide range of values is prone to heteroskedasticity. If heteroskedasticity exists, the regression contains unequal variance, which leads to the analysis of fitting would be poor.')
+print('In the BoxCox transformation, the response variable will be transformed to a more general form that occurs with a transform parameter called a lambda value. It helps stabilise variance, make the data more normal distribution-like, and improve the validity of data stabilisation procedures.
+Usually, BoxCox can run on over 0 values (In the R function). In this model, the viscosity should be over 0 by the second law of thermodynamics. So It can use BoxCox transformation (Therefore, it is crucial to refine the dataset before interpreting)')
+print('In this transformation case, it makes residual plots more evenly (more normal distributed). This could find the fact that the residual plots between refit Bayesian Lasso and BoxCox transformation.
+Box-Cox is a little bit successful in reducing heteroskedasticity, but the inference of model fitting was unsuccessful. Moreover, the Box-Cox transformation interpreted the coefficients of the reduced model to complicate by changing the data. So R square score was slightly lower than the original reduced fit data.')
+print('Overall, three methods, all of which make the R square score, were reduced. It means that our model was fitted worse. Furthermore, I can understand that there are many fast and easy ways to infer the data but using original data to fitting is the most accurate.')
+```

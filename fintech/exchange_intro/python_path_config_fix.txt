@@ -1,0 +1,6 @@
+The Cloud9 IDE reads Python sources in all locations specified by the so-called Python Path, which it can then use to
+auto-complete code and provide relevant documentation where needed. This is specified in the Project Configuration under
+Python Support, but the default value is set for the wrong Python version. For the optimal experience it should be
+changed to the following string:
+
+/usr/lib64/python3.6:/usr/lib64/python3.6/lib-dynload:/usr/local/lib64/python3.6/site-packages:/usr/local/lib/python3.6/site-packages:/usr/lib64/python3.6/dist-packages:/usr/lib/python3.6/dist-packages

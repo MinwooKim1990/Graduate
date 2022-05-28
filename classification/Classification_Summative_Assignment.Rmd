@@ -1,0 +1,358 @@
+---
+title: "ClassificationSummativeAssasement"
+author: "tbdr69"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Clear all Environment
+
+```{r}
+# Clear Environments
+rm(list=ls(all=T))
+```
+
+## Bank Loan Data Summary
+
+```{r}
+library(ggplot2)
+library(dplyr)
+# Read the data using csv file
+bank.loan<-read.csv(file = "bank_personal_loan.csv", header = TRUE)
+# Skim a data frame
+str(bank.loan)
+skimr::skim(bank.loan)
+# Removing experience. Experience and age are highly correlated and some datas are incorrect so delete experience
+print(cor(bank.loan[,'Age'],bank.loan[,'Experience']))
+attrib <- setdiff(names(bank.loan), c("Experience"))
+bank.loan <- bank.loan[, attrib]
+# Convert attribute to appropriate type  
+attrib2 <- setdiff(names(bank.loan), c( "Age", "Income","Mortgage","CCAvg"))
+bank.loan <- data.frame(sapply(bank.loan, as.character))
+c.Data <- data.frame(sapply(bank.loan[,attrib2], as.factor))
+n.Data <- data.frame(sapply(bank.loan[,c( "Age", "Income","Mortgage","CCAvg")], as.numeric))
+bank.loan <- cbind(n.Data, c.Data)
+# Summary of Bank Data
+summary(bank.loan)
+# Summary of Data Visualisation
+DataExplorer::plot_bar(bank.loan, ncol = 3)
+DataExplorer::plot_histogram(bank.loan, ncol = 2)
+DataExplorer::plot_boxplot(bank.loan, by = "Personal.Loan", ncol = 2, nrow=2)
+```
+
+## Bar Plot of Personal Loan in each features
+
+```{r}
+library(vegan)
+library(dummies)
+library(RColorBrewer)
+options(warn=-1)
+# Split it independent variable and dependent variab for classification.
+att_name <- c( "Age", "Income","Mortgage","CCAvg")
+att_name2 <- setdiff(attrib2, "Personal.Loan")
+# Standardizing the numeric data
+std.data <- decostand(bank.loan[,att_name], "range") 
+# Convert education and family categorical attributes into numeric attributes 
+education <- dummy(bank.loan$Education)
+family <- dummy(bank.loan$Family)
+std.data <- cbind(std.data, education, family)
+att_name3 <- setdiff(att_name2, c("Education", "Family"))
+# Convert remaining categorical attributes into numeric attributes 
+std.data <- cbind(std.data, data.frame(lapply(lapply(bank.loan[ ,att_name2],as.character),as.numeric)))
+ind_attr <- names(std.data)
+# Append the Target attribute 
+std.data <- cbind(std.data, Personal.Loan=bank.loan[,"Personal.Loan"])
+# Plotting of categorical with respect tp personal Loan
+par(mfrow=c(2,2), cex.main=1, cex.lab=1, cex.axis=0.8)
+loan_family<-table(bank.loan$Personal.Loan,bank.loan$Family)
+barplot(loan_family, col = c("#68246d90",'#87CEEB'), xlab="Numb_Family")
+legend("topright", legend=c("Loan_No", "Loan_Yes"), title="Personal Loan",fill = c("#68246d90",'#87CEEB'), box.lty=0, cex=0.5)
+
+loan_edu<-table(bank.loan$Personal.Loan,bank.loan$Education)
+barplot(loan_edu, col = c("#68246d90",'#87CEEB'), xlab="Education", names=c('Undergraduated','Graduated','Advanced'))
+legend("topright", legend=c("Loan_No", "Loan_Yes"), title="Personal Loan",fill = c("#68246d90",'#87CEEB'), box.lty=0, cex=0.5)
+
+loan.secur<-table(bank.loan$Personal.Loan,bank.loan$Securities.Account)
+barplot(loan.secur, col = c("#68246d90",'#87CEEB'), xlab="Security_Account", names=c('Not Have','Have'))
+legend("topright", legend=c("Loan_No", "Loan_Yes"), title="Personal Loan",fill = c("#68246d90",'#87CEEB'), box.lty=0, cex=0.5)
+
+loan.CD<-table(bank.loan$Personal.Loan,bank.loan$CD.Account)
+barplot(loan.CD, col = c("#68246d90",'#87CEEB'), xlab="Certificate_Deposit", names=c('Not Have','Have'))
+legend("topright", legend=c("Loan_No", "Loan_Yes"), title="Personal Loan",fill = c("#68246d90",'#87CEEB'), box.lty=0, cex=0.5)
+# Plot income and Personal Loan data
+par(mfrow=c(1,1), cex.main=1, cex.lab=1, cex.axis=0.8)
+loan_income<-table(bank.loan$Personal.Loan,bank.loan$Income)
+plot(bank.loan$Income,bank.loan$Personal.Loan, alpha = 0.2, pch = 16, col = ifelse(bank.loan$Personal.Loan < 0.5,"#68246d90",'#87CEEB'), xlab="Income",ylab='Personal.Loan')
+legend("topleft", legend=c("Loan_No", "Loan_Yes"), title="Personal Loan",fill = c("#68246d90",'#87CEEB'), box.lty=0, cex=0.8)
+# Bar Plot to see the rate or personal loan in education 
+p <- as.factor(bank.loan$Personal.Loan)
+ggplot(data=bank.loan, aes(Education))+
+  geom_bar(aes(fill=Personal.Loan), position="fill") + 
+  scale_x_discrete(labels=c("1" = "Undergraduate", "2" = "Graduate","3" = "Advanced"))+ xlab('Education') + scale_fill_brewer(labels=(c("Loan_No", "Loan_Yes")))
+```
+
+## Remake Bank Loan data
+
+```{r}
+library(ggplot2)
+library(scales)
+library(ggmap)
+library(viridis)
+library(grid)
+# Import data again to calculate average data for maps
+bank<-read.csv(file = "bank_personal_loan.csv", header = TRUE)
+# Delete unreliable Zip code data
+re.bank<-bank[-which(bank$ZIP.Code==9307),]
+# Organize by zip code
+zips<-rownames(table(re.bank[,'ZIP.Code']))
+# Make Map data matrix
+mapaver<-matrix(0, nrow = length(zips), ncol = 7)
+for (i in 1:length(zips)){
+  temp<-re.bank[which(re.bank$ZIP.Code == zips[i]),]
+  mapaver[i,1]<-zips[i]
+  mapaver[i,2]<-round(mean(temp$Mortgage))
+  mapaver[i,3]<-round(mean(temp$Income))
+  mapaver[i,4]<-round(mean(temp$CCAvg),1)
+  mapaver[i,5]<-round(sum(temp$Education)/nrow(temp),1)
+  mapaver[i,6]<-round(sum(temp$Personal.Loan)/nrow(temp),1)*100
+  mapaver[i,7]<-round(sum(temp$CreditCard)/nrow(temp),1)
+}
+# Redifine the name of Zipcode
+colnames(mapaver) <- c("GEOID10",'Mortgage','Income','CCAvg','Education','Personal.Loan','CreditCard')
+```
+
+## Map of Heatmap
+
+```{r}
+# Warning to run (it takes a lot of time to run for about 10minutes)
+library(mapview)
+library(tigris)
+library(tmap)
+library(maps)
+library(spData)
+options(tigris_use_cache = TRUE)
+# Use zctas data for zip code
+cal.zctas <- zctas(state=06, year = 2010)
+mapaver2<-rbind(mapaver,matrix(NA,nrow=1303,ncol=7))
+make.data<-cal.zctas
+make.data$GEOID10<-mapaver2[,'GEOID10']
+make.data<-cbind(make.data,mapaver2[,2:7])
+# Mutate datas and applied exist datas
+new.data <- make.data %>%
+  mutate(Mortgage = mapaver2[,2])%>%
+  mutate(Income = mapaver2[,3])%>%
+  mutate(CCAvg = mapaver2[,4])%>%
+  mutate(Education = mapaver2[,5])%>%
+  mutate(Personal.Loan = mapaver2[,6])%>%
+  mutate(CreditCard = mapaver2[,7])
+# Plot the Map of Heatmap
+tm_shape(new.data) + tm_polygons(col = "Income", palette = "-viridis") + tm_layout("Ave.Income($000)",inner.margins=c(0,.2,0,0), title.size=0.7,legend.outside = TRUE)
+tm_shape(new.data) + tm_polygons(col = "Education", palette = "-viridis") + tm_layout("Ave.Education",inner.margins=c(0,.2,0,0), title.size=0.7,legend.outside = TRUE)
+tm_shape(new.data) + tm_polygons(col = "Personal.Loan", palette = "-viridis") + tm_layout("Persnoal.loan percent",inner.margins=c(0,.2,0,0), title.size=0.7,legend.outside = TRUE)
+# Map viewing for wanted area
+mapView(new.data)
+```
+
+## Data Split
+
+```{r}
+# Data load for CART and Random Forest
+re.bank<-bank.loan[-which(bank.loan$ZIP.Code==9307),]
+# Delete unrelated data ( Age and ZipCode )
+tree.bank<-re.bank[,-c(5)]
+# Use 70% of dataset as training set and remaining 30% as testing set
+set.seed(1)
+sample.size2 <- floor(0.70 * nrow(tree.bank))
+# Set the seed to make your partition reproducible
+set.seed(1)
+train.ind2 <- sample(seq_len(nrow(tree.bank)), size = sample.size2)
+# Split train and test data
+tree.train <- tree.bank[train.ind2, ]
+tree.test <- tree.bank[-train.ind2, ]
+```
+
+## Random Forest for Personal Loan
+
+```{r}
+library(randomForest)
+library(datasets)
+library(caret)
+# Make this example reproducible
+set.seed(1)
+# Fit the random forest model with Personal Loan feature
+rf.model2 <- randomForest(as.factor(Personal.Loan) ~., data=tree.train, proximity=TRUE, ntree=300)
+# Use prediction to find matching percentage
+rf.pred2 <- predict(rf.model2, tree.test)
+rf.accu<-round(mean(rf.pred2==tree.test$Personal.Loan)*100,2)
+# Plot the test Mean Square Error by number of trees
+plot(rf.model2, main='Random Forest Personal Loan Error graph')
+legend("topright",legend=c('OOB','No Personal loan','Yes Personal Loan'),col=1:3,cex=0.8,fill=1:3)
+hist(treesize(rf.model2), main = "No. of Nodes for the Trees", col = "#68246d90")
+# Produce variable importance plot
+varImpPlot(rf.model2, sort = T, n.var = 10, main = "Variable Importance (Personal.Loan)")
+```
+
+## Random Forest for Education
+
+```{r}
+# Make this example reproducible
+set.seed(1)
+# Fit the random forest model with Education feature
+rf.model <- randomForest(as.factor(Education) ~ ., tree.train, proximity=TRUE, ntree=300)
+print(cor(bank.loan[,'CCAvg'],bank.loan[,'Income']))
+# Use prediction to find matching percentage
+rf.pred<-predict(rf.model, newdata=tree.test)
+# Plot the test Mean Square Error by number of trees
+plot(rf.model, main='Random Forest Education Error graph')
+legend("topright",legend=c('OOB','UnderGraduate','Graduate','Advanced'),col=1:4,cex=0.8,fill=1:4)
+hist(treesize(rf.model), main = "No. of Nodes for the Trees", col = "#68246d90")
+# Produce variable importance plot
+varImpPlot(rf.model, main = "Variable Importance (Education)") 
+```
+
+## CART for Personal Loan
+
+```{r}
+library(ISLR) 
+library(rpart) 
+library(rpart.plot) 
+library(mlr3)
+# Build the initial CART
+tree <- rpart(as.factor(Personal.Loan) ~ ., data=tree.train, control=rpart.control(cp=.0001))
+# Identify best Complexity Parameter value to use
+best.cp <- tree$cptable[which.min(tree$cptable[,"xerror"]),"CP"]
+# Produce a pruned tree based on the best cp value
+pruned.tree <- prune(tree, cp=best.cp)
+# Use pruned tree to predict which class of people use Personal Loan
+tree.pred<-predict(pruned.tree, newdata=tree.test,type='class')
+tree.accu<-round(mean(tree.pred==tree.test$Personal.Loan)*100,2)
+# Plot the pruned tree
+rpart.plot(pruned.tree, main='CART of Personal.Loan')
+legend("topright", legend=c('0:N      ','1:Y      '), box.lty=0, cex=0.8)
+```
+
+## Bagging for Personal Loan
+
+```{r}
+library(ipred)
+# Make bootstrapping reproducible
+set.seed(1)
+# Assess 10-80 bagged trees
+ntree <- 10:100
+# Create empty vector to save Out Of Bag Root Mean Square Error values
+rmse <- vector(mode = "numeric", length = length(ntree))
+for (i in seq_along(ntree)) {
+  # perform bagged model
+  bagged.model <- bagging(as.factor(Personal.Loan) ~ ., data = tree.train, coob = TRUE, nbagg = ntree[i])
+  # get OOB error
+  rmse[i] <- bagged.model$err
+}
+# Cross Validation Bagged model Specify 10-fold cross validation
+bagged.ctrl <- trainControl(method = "cv",  number = 10) 
+# CV bagged model
+bagged_cv <- train(as.factor(Personal.Loan) ~ ., data = tree.train, method = "treebag", trControl = bagged.ctrl, importance = TRUE)
+# Use predict which class of people use Personal Loan
+bagged.pred <- predict(bagged_cv, tree.test)
+bagged.accu <- round(mean(bagged.pred==tree.test$Personal.Loan)*100,2)
+# Plot RMSE value with number of trees
+plot(ntree, rmse, type = 'l', lwd = 2)
+abline(v = ntree[which.min(rmse)], col = "red", lty = "dashed")
+print(min(rmse))
+# Plot most important variables
+plot(varImp(bagged_cv), 10)  
+```
+
+## LDA for Personal Loan
+
+```{r}
+library(MASS)
+# Fit LDA model
+lda.model <- lda(as.factor(Personal.Loan)~., data=tree.train)
+# Use LDA model to make predictions on test data
+lda.predicted <- predict(lda.model, tree.test)
+# Find accuracy of model
+lda.accu <- round(mean(lda.predicted$class==tree.test$Personal.Loan)*100,2)
+# Define data to plot
+lda.plot <- cbind(tree.test, lda.predicted$x)
+```
+
+## Plot ROC Curve and Organize the data
+
+```{r}
+library(party) 
+library(partykit) 
+library(PRROC)
+library(pROC)
+library(caret)
+# Set the seed to reproducible
+set.seed(1)
+# Calculate ROC curve for Random Forest of Personal Loan with individual ROC and unified ROC
+rocrf.prob3 <- predict(rf.model2, tree.test, type='prob')
+rocCurve.rf <- roc(tree.test$Personal.Loan,rocrf.prob3[,2])
+rocCurve.rf2 <- roc.curve(scores.class0 = rocrf.prob3[,2], weights.class0=as.numeric(tree.test$Personal.Loan), curve=TRUE)
+# Calculate ROC curve for CART of Personal Loan with individual ROC and unified ROC
+roc.tree <- rpart(as.factor(Personal.Loan) ~ ., data=tree.train, control=rpart.control(cp=.0001))
+roctree.probs<-predict(roc.tree, newdata=tree.test, type="prob")
+rocCurve.tree <- roc(tree.test$Personal.Loan, roctree.probs[,2])
+rocCurve.tree2 <- roc.curve(scores.class0 = roctree.probs[,2], weights.class0=as.numeric(tree.test$Personal.Loan), curve=TRUE)
+# Calculate ROC curve for Bagged of Personal Loan with individual ROC and unified ROC
+roc.bagged <- bagging(formula = as.factor(Personal.Loan) ~ ., data = tree.train,coob = TRUE)
+rocbagged.probs<-predict(roc.bagged, newdata=tree.test, type="prob")
+rocCurve.bagged <- roc(tree.test$Personal.Loan, rocbagged.probs[,2])
+rocCurve.bagged2 <- roc.curve(scores.class0 = rocbagged.probs[,2], weights.class0=as.numeric(tree.test$Personal.Loan), curve=TRUE)
+# Calculate ROC curve for LDA of Personal Loan with individual ROC and unified RO
+roclda.probs<-predict(lda.model, newdata=tree.test, type="prob")
+rocCurve.lda <- roc(tree.test$Personal.Loan, roclda.probs$posterior[,2])
+rocCurve.lda2 <- roc.curve(scores.class0 = roclda.probs$posterior[,2], weights.class0=as.numeric(tree.test$Personal.Loan), curve=TRUE)
+# Plot the individual ROC curve with Area uncer ROC curve
+par(mfrow=c(2,2), cex.main=1, cex.lab=1, cex.axis=0.8)
+plot(rocCurve.rf2,main='Random_Forest ROC')
+plot(rocCurve.tree2,main='Tree ROC')
+plot(rocCurve.bagged2,main='Bagged ROC')
+plot(rocCurve.lda2,main='LDA ROC')
+# Plot the unified ROC curve for compare
+par(mfrow=c(1,1), cex.main=1, cex.lab=1, cex.axis=0.8)
+plot(rocCurve.tree,col=2,main='ROC of methods')
+lines(rocCurve.bagged,col=3)
+lines(rocCurve.rf,col=4)
+lines(rocCurve.lda, col=5)
+legend("topright", legend=c('Tree','Bagged','Random_Forest','LDA'), title="ROC",fill = c(2,3,4,5), box.lty=0, cex=0.5)
+# ROC curve with zoom in
+plot(rocCurve.tree,col=2,xlim=c(1.2,0.7),ylim=c(0.6,1.2),main='ROC of methods')
+lines(rocCurve.bagged,col=3)
+lines(rocCurve.rf,col=4)
+lines(rocCurve.lda, col=5)
+legend("topright", legend=c('Tree','Bagged','Random_Forest','LDA'), title="ROC",fill = c(2,3,4,5), box.lty=0, cex=0.5)
+# Bar plot of test accuracy by methods
+rf.auc<-rocCurve.rf2$auc
+tree.auc<-rocCurve.tree2$auc
+bagged.auc<-rocCurve.bagged2$auc
+lda.auc<-rocCurve.lda2$auc
+auc.methods<-c(rf.auc,tree.auc,bagged.auc,lda.auc)
+accu.methods<-c(rf.accu,tree.accu,bagged.accu,lda.accu)
+method <- c(rep("Random Forest", 2), rep("CART", 2), rep("Bagged", 2), rep('LDA',2))
+condition <- rep(c("Accuracy", "AUC") , 4)
+value <- c(bagged.accu,bagged.auc*100,tree.accu,tree.auc*100,rf.accu,rf.auc*100,lda.accu,lda.auc*100)
+accu.data <- data.frame(method,condition,value)
+ggplot(accu.data, aes(fill=condition, y=value, x=method)) + geom_bar(position="dodge", stat="identity")
+print(accu.data)
+# Calculate calibrations for each models
+calidata<-tree.test
+calidata$RFprob <- rocrf.prob3[,1]
+calidata$Trprob <- roctree.probs[,1]
+calidata$Bgprob <- rocbagged.probs[,1]
+RFcal <- calibration(x = as.factor(Personal.Loan) ~ RFprob, data = calidata, class = 0, cuts= 8)
+Trcal <- calibration(x = as.factor(Personal.Loan) ~ Trprob, data = calidata, class = 0, cuts= 8)
+Bgcal <- calibration(x = as.factor(Personal.Loan) ~ Bgprob, data = calidata, class = 0, cuts= 8)
+# Plot Calibration Curve
+ggplot() + xlab("Bin Midpoint") +
+  geom_line(data = RFcal$data, aes(midpoint, Percent), color = 2) +
+  geom_point(data = RFcal$data, aes(midpoint, Percent), color = 2, size = 3) +
+  geom_line(data = Trcal$data, aes(midpoint, Percent), color = 3) +
+  geom_point(data = Trcal$data, aes(midpoint, Percent), color = 3, size = 3) +
+  geom_line(data = Bgcal$data, aes(midpoint, Percent), color = 4) +
+  geom_point(data = Bgcal$data, aes(midpoint, Percent), color = 4, size = 3) +
+  geom_line(aes(c(0, 100), c(0, 100)), linetype = 2, color = 'grey50')
+legend("topleft", legend=c('Random Forest','CART','Bagging'),fill=c(2,3,4), box.lty=0, cex=0.8)
+```
